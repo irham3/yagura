@@ -10,6 +10,9 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "Yagura - Asset Monitoring",
   description: "Real-time Crypto, Stock, and Asset Monitoring",
+  icons: {
+    icon: "/logo.svg",
+  },
 };
 
 export default function RootLayout({

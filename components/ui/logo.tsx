@@ -1,14 +1,13 @@
 "use client"
 
 import { cn } from "@/lib/utils";
+import Image from "next/image";
 
 export default function Logo({ className }: { className?: string }) {
   return (
-    <div className={cn("flex items-center gap-2", className)}>
-      <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center shadow-lg shadow-primary/20 transition-all">
-        <span className="text-xl font-black text-primary-foreground leading-none" style={{ fontFamily: 'var(--font-heading, sans-serif)' }}>Y</span>
-      </div>
-      <span className="text-xl font-bold tracking-tight">Yagura</span>
+    <div className={cn("flex items-center", className)}>
+      <Image src="/logo.svg" alt="Yagura Logo" width={32} height={32} className="rounded-lg shadow-lg shadow-primary/20" />
+      <span className="text-2xl font-bold tracking-tight ml-1">agura</span>
     </div>
   )
 }
