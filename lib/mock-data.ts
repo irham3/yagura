@@ -1,7 +1,7 @@
-import { Asset, MarketData, PortfolioItem, PriceAlert } from './types';
+import { Asset, AssetType, MarketData, PortfolioItem, PriceAlert } from './types';
 import { USD_IDR_RATE } from './utils';
 
-const createAsset = (id: string, symbol: string, name: string, type: any, priceUSD: number, change: number): Asset => ({
+const createAsset = (id: string, symbol: string, name: string, type: AssetType, priceUSD: number, change: number): Asset => ({
   id,
   symbol,
   name,

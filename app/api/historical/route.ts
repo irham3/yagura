@@ -52,8 +52,9 @@ export async function GET(request: Request) {
             data: ohlcData
         });
         
-    } catch (error: any) {
-        console.error('[Historical] Error:', error.message);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+    } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.error('[Historical] Error:', errorMessage);
+        return NextResponse.json({ error: errorMessage }, { status: 500 });
     }
 }

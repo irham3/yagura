@@ -15,7 +15,7 @@ interface UseBinanceWebSocketProps {
 
 export function useBinanceWebSocket({ symbols, onPriceUpdate, enabled = true }: UseBinanceWebSocketProps) {
   const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (!enabled || symbols.length === 0) return;
@@ -49,7 +49,7 @@ export function useBinanceWebSocket({ symbols, onPriceUpdate, enabled = true }: 
                 onPriceUpdate(symbol, price);
               }
             }
-          } catch (error) {
+          } catch (error: unknown) {
             console.error('[Binance WS] Parse error:', error);
           }
         };
@@ -71,7 +71,7 @@ export function useBinanceWebSocket({ symbols, onPriceUpdate, enabled = true }: 
             }, 3000);
           }
         };
-      } catch (error) {
+      } catch (error: unknown) {
         console.error('[Binance WS] Setup error:', error);
       }
     };

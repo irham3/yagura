@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import { MOCK_MARKET_DATA } from '@/lib/mock-data';
 import yahooFinance from 'yahoo-finance2';
+import { Asset } from '@/lib/types';
 
 // Simplified fetchers with built-in error handling
-async function safeFetchCrypto() {
+async function safeFetchCrypto(): Promise<Asset[]> {
     try {
         console.log('[CoinGecko] Fetching crypto prices...');
         const response = await fetch(
@@ -43,14 +44,15 @@ async function safeFetchCrypto() {
             change24h: data[id]?.usd_24h_change || 0,
             lastUpdated: new Date().toISOString()
         }));
-    } catch (error: any) {
-        console.error('[CoinGecko] Error:', error.message);
+    } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.error('[CoinGecko] Error:', errorMessage);
         console.log('[CoinGecko] Falling back to mock data');
         return MOCK_MARKET_DATA.crypto;
     }
 }
 
-async function safeFetchYahoo() {
+async function safeFetchYahoo(): Promise<Asset[]> {
     try {
         console.log('[Yahoo Finance] Fetching stocks and commodities...');
         
@@ -60,13 +62,13 @@ async function safeFetchYahoo() {
             'GC=F', 'SI=F' // Commodities
         ];
         
-        const results: any[] = await yahooFinance.quote(symbols);
-        const rateResult: any = await yahooFinance.quote('IDR=X');
-        const usdIdrRate = rateResult?.regularMarketPrice || 16350;
+        const results = await yahooFinance.quote(symbols);
+        const rateResult = await yahooFinance.quote('IDR=X');
+        const usdIdrRate = (rateResult as any)?.regularMarketPrice || 16350;
         
         console.log('[Yahoo Finance] Success! Fetched', results.length, 'symbols. USD/IDR rate:', usdIdrRate);
 
-        return results.map((item: any) => {
+        return (results as any[]).map((item: any) => {
             let type: 'STOCK_US' | 'STOCK_ID' | 'COMMODITY' = 'STOCK_US';
             if (item.symbol?.includes('.JK')) type = 'STOCK_ID';
             if (item.symbol?.includes('=F')) type = 'COMMODITY';
@@ -100,8 +102,9 @@ async function safeFetchYahoo() {
                 lastUpdated: new Date().toISOString()
             };
         });
-    } catch (error: any) {
-        console.error('[Yahoo Finance] Error:', error.message);
+    } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.error('[Yahoo Finance] Error:', errorMessage);
         console.log('[Yahoo Finance] Falling back to mock data');
         return [
             ...MOCK_MARKET_DATA.stocksUS,
@@ -119,9 +122,9 @@ export async function GET() {
         safeFetchYahoo()
     ]);
     
-    const stocksUS = yahoo.filter((a: any) => a.type === 'STOCK_US');
-    const stocksID = yahoo.filter((a: any) => a.type === 'STOCK_ID');
-    const commodities = yahoo.filter((a: any) => a.type === 'COMMODITY');
+    const stocksUS = yahoo.filter((a: Asset) => a.type === 'STOCK_US');
+    const stocksID = yahoo.filter((a: Asset) => a.type === 'STOCK_ID');
+    const commodities = yahoo.filter((a: Asset) => a.type === 'COMMODITY');
 
     console.log('[API] Response ready:');
     console.log('  - Crypto:', crypto.length, 'items', crypto[0] ? `(BTC: $${crypto[0].priceUSD})` : '');

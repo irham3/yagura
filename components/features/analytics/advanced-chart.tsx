@@ -20,13 +20,30 @@ interface OHLCV {
   volume: number;
 }
 
-const CustomTooltip = ({ active, payload, label, currency }: any) => {
+interface ChartDataPoint extends OHLCV {
+  displayOpen: number;
+  displayHigh: number;
+  displayLow: number;
+  displayClose: number;
+  displayVolume: number;
+}
+
+interface ChartStats {
+  high24h: number;
+  low24h: number;
+  vol24h: number;
+  currentPrice: number;
+  change24h: number;
+  isPositive: boolean;
+}
+
+const CustomTooltip = ({ active, payload, label, currency }: { active?: boolean; payload?: any[]; label?: string; currency: 'USD' | 'IDR' }) => {
   if (active && payload && payload.length) {
-    const data = payload[0].payload;
+    const data = payload[0].payload as ChartDataPoint;
     const isGreen = data.close >= data.open;
     return (
       <div className="bg-popover/95 backdrop-blur-md border border-border p-3 rounded-lg shadow-xl text-xs space-y-1 min-w-[150px]">
-        <p className="text-muted-foreground font-medium mb-2">{new Date(label).toLocaleString()}</p>
+        <p className="text-muted-foreground font-medium mb-2">{label ? new Date(label).toLocaleString() : ''}</p>
         <div className="grid grid-cols-2 gap-x-4 gap-y-1">
           <span className="text-muted-foreground">Price:</span>
           <span className={`font-mono font-bold ${isGreen ? 'text-emerald-500' : 'text-rose-500'}`}>
@@ -63,13 +80,13 @@ export default function AdvancedChart() {
 
   const selectedAsset = allAssets.find(a => a.id === selectedAssetId) || allAssets[0];
 
-  const [data, setData] = useState<{ chartData: any[], stats: any } | null>(null);
+  const [data, setData] = useState<{ chartData: ChartDataPoint[], stats: ChartStats } | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true);
       setData(null);
-      setDataSource('none');
+      // setDataSource('none');
 
       const rate = currency === 'IDR' ? 16350 : 1;
       const currentPrice = selectedAsset[currency === 'USD' ? 'priceUSD' : 'priceIDR'];
@@ -81,7 +98,7 @@ export default function AdvancedChart() {
           if (res.ok) {
             const history = await res.json();
             if (history.data && history.data.length > 0) {
-              const processedLive = history.data.map((d: any) => ({
+              const processedLive: ChartDataPoint[] = history.data.map((d: OHLCV) => ({
                 ...d,
                 displayOpen: d.open * rate,
                 displayHigh: d.high * rate,
@@ -96,9 +113,9 @@ export default function AdvancedChart() {
               setData({
                 chartData: processedLive,
                 stats: {
-                  high24h: Math.max(...processedLive.slice(-Math.min(24, processedLive.length)).map(d => d.displayHigh)),
-                  low24h: Math.min(...processedLive.slice(-Math.min(24, processedLive.length)).map(d => d.displayLow)),
-                  vol24h: processedLive.slice(-Math.min(24, processedLive.length)).reduce((acc, curr) => acc + curr.displayVolume, 0),
+                  high24h: Math.max(...processedLive.slice(-Math.min(24, processedLive.length)).map((d: ChartDataPoint) => d.displayHigh)),
+                  low24h: Math.min(...processedLive.slice(-Math.min(24, processedLive.length)).map((d: ChartDataPoint) => d.displayLow)),
+                  vol24h: processedLive.slice(-Math.min(24, processedLive.length)).reduce((acc: number, curr: ChartDataPoint) => acc + curr.displayVolume, 0),
                   currentPrice,
                   change24h: liveChangePercent,
                   isPositive: liveChangePercent >= 0
@@ -107,7 +124,7 @@ export default function AdvancedChart() {
               setDataSource('live');
             }
           }
-        } catch (err) {
+        } catch (err: unknown) {
           console.warn("History fetch failed", err);
         }
       }
@@ -250,7 +267,7 @@ export default function AdvancedChart() {
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted/20" vertical={false} />
                   <XAxis
                     dataKey="date"
-                    tickFormatter={(str) => {
+                    tickFormatter={(str: string) => {
                       const date = new Date(str);
                       if (timeRange === '1D') {
                         return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -270,7 +287,7 @@ export default function AdvancedChart() {
                   <YAxis
                     yAxisId="left"
                     domain={['auto', 'auto']}
-                    tickFormatter={(val) => formatCurrency(val, currency)}
+                    tickFormatter={(val: number) => formatCurrency(val, currency)}
                     className="text-xs text-muted-foreground"
                     tickLine={false}
                     axisLine={false}

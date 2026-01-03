@@ -61,14 +61,14 @@ const YAHOO_SYMBOLS = [
 
 export async function fetchYahooData() {
     try {
-        const results: any[] = await yahooFinance.quote(YAHOO_SYMBOLS);
+        const results = await yahooFinance.quote(YAHOO_SYMBOLS);
         
         // We need USD/IDR rate for normalization if source is in one currency but we need the other
         // Let's fetch the rate as well
-        const rateResult: any = await yahooFinance.quote('IDR=X');
-        const usdIdrRate = rateResult.regularMarketPrice || 16350;
+        const rateResult = await yahooFinance.quote('IDR=X');
+        const usdIdrRate = (rateResult as any).regularMarketPrice || 16350;
 
-        return results.map(item => {
+        return (results as any[]).map((item: any) => {
             let type = 'STOCK_US';
             if (item.symbol.includes('.JK')) type = 'STOCK_ID';
             if (item.symbol.includes('=F')) type = 'COMMODITY';

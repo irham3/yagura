@@ -1,7 +1,7 @@
 "use client"
 
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, Wallet, Bell, Settings, AreaChart, LogOut } from 'lucide-react';
+import { LayoutDashboard, Wallet, Bell, Settings, AreaChart, LogOut, type LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import Logo from "@/components/ui/logo";
@@ -42,7 +42,14 @@ export default function Sidebar() {
   );
 }
 
-function NavButton({ icon: Icon, label, active, onClick }: any) {
+interface NavButtonProps {
+  icon: LucideIcon;
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}
+
+function NavButton({ icon: Icon, label, active, onClick }: NavButtonProps) {
   return (
     <Button
       variant={active ? "secondary" : "ghost"}

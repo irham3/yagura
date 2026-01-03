@@ -43,13 +43,19 @@ export default function AssetPerformanceChart() {
 
   const selectedAsset = allAssets.find(a => a.id === selectedAssetId) || allAssets[0];
 
-  const chartData = useMemo(() => {
+  interface ChartData {
+    date: string;
+    price: number;
+    displayPrice: number;
+  }
+
+  const chartData = useMemo<ChartData[]>(() => {
     const points = timeRange === '1D' ? 24 : timeRange === '1W' ? 7 : timeRange === '1M' ? 30 : timeRange === '1Y' ? 365 : 1825;
     const volatility = selectedAsset.type === 'CRYPTO' ? 0.05 : 0.02;
 
     // Generate consistent fake data based on seed (asset id + time range) logic effectively
     // For now just random but stable-ish for the session
-    return generateHistoricalData(selectedAsset.priceUSD, 50, volatility).map(d => ({
+    return generateHistoricalData(selectedAsset.priceUSD, 50, volatility).map((d: { date: string, price: number }) => ({
       ...d,
       displayPrice: currency === 'USD' ? d.price : d.price * 16350 // simplified rate
     }));
@@ -101,7 +107,7 @@ export default function AssetPerformanceChart() {
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
               <XAxis
                 dataKey="date"
-                tickFormatter={(str) => {
+                tickFormatter={(str: string) => {
                   const date = new Date(str);
                   if (timeRange === '1D') return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                   return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
@@ -113,7 +119,7 @@ export default function AssetPerformanceChart() {
               />
               <YAxis
                 domain={['auto', 'auto']}
-                tickFormatter={(val) => formatCurrency(val, currency)}
+                tickFormatter={(val: number) => formatCurrency(val, currency)}
                 className="text-xs text-muted-foreground"
                 tickLine={false}
                 axisLine={false}
@@ -122,8 +128,8 @@ export default function AssetPerformanceChart() {
               <Tooltip
                 contentStyle={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)', borderRadius: 'var(--radius)' }}
                 itemStyle={{ color: 'var(--foreground)' }}
-                labelFormatter={(label) => new Date(label).toLocaleString()}
-                formatter={(value: any) => [formatCurrency(Number(value), currency), 'Price']}
+                labelFormatter={(label: string) => label ? new Date(label).toLocaleString() : ''}
+                formatter={(value: number | string) => [formatCurrency(Number(value), currency), 'Price']}
               />
               <Area
                 type="monotone"
