@@ -1,12 +1,6 @@
 "use client"
 
-import { useEffect, useRef } from 'react';
-
-interface BinancePrice {
-  symbol: string;
-  price: string;
-}
-
+import { useEffect, useRef, useState } from 'react';
 interface UseBinanceWebSocketProps {
   symbols: string[]; // e.g., ['btcusdt', 'ethusdt']
   onPriceUpdate: (symbol: string, price: number) => void;
@@ -14,6 +8,7 @@ interface UseBinanceWebSocketProps {
 }
 
 export function useBinanceWebSocket({ symbols, onPriceUpdate, enabled = true }: UseBinanceWebSocketProps) {
+  const [isConnected, setIsConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -33,6 +28,7 @@ export function useBinanceWebSocket({ symbols, onPriceUpdate, enabled = true }: 
 
         ws.onopen = () => {
           console.log('[Binance WS] ✅ Connected! Streaming real-time prices');
+          setIsConnected(true);
         };
 
         ws.onmessage = (event) => {
@@ -54,7 +50,7 @@ export function useBinanceWebSocket({ symbols, onPriceUpdate, enabled = true }: 
           }
         };
 
-        ws.onerror = (error) => {
+        ws.onerror = () => {
           // WebSocket errors are often empty objects in browser
           console.warn('[Binance WS] Connection issue (this is normal on first load)');
         };
@@ -62,6 +58,7 @@ export function useBinanceWebSocket({ symbols, onPriceUpdate, enabled = true }: 
         ws.onclose = (event) => {
           console.log('[Binance WS] Disconnected. Code:', event.code, 'Reason:', event.reason || 'Normal closure');
           wsRef.current = null;
+          setIsConnected(false);
           
           // Only auto-reconnect if not a normal closure
           if (event.code !== 1000 && enabled) {
@@ -92,6 +89,6 @@ export function useBinanceWebSocket({ symbols, onPriceUpdate, enabled = true }: 
   }, [symbols, enabled, onPriceUpdate]);
 
   return {
-    isConnected: wsRef.current?.readyState === WebSocket.OPEN
+    isConnected
   };
 }

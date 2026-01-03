@@ -7,7 +7,7 @@ import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianG
 import { formatCurrency } from "@/lib/utils";
 import { useStore } from "@/components/providers/store-provider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Asset } from "@/lib/types";
+
 
 type TimeRange = '1D' | '1W' | '1M' | '1Y' | '5Y';
 
@@ -55,7 +55,7 @@ export default function AssetPerformanceChart() {
 
     // Generate consistent fake data based on seed (asset id + time range) logic effectively
     // For now just random but stable-ish for the session
-    return generateHistoricalData(selectedAsset.priceUSD, 50, volatility).map((d: { date: string, price: number }) => ({
+    return generateHistoricalData(selectedAsset.priceUSD, points, volatility).map((d: { date: string, price: number }) => ({
       ...d,
       displayPrice: currency === 'USD' ? d.price : d.price * 16350 // simplified rate
     }));

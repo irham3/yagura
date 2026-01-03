@@ -61,14 +61,23 @@ async function safeFetchYahoo(): Promise<Asset[]> {
             'BBCA.JK', 'BBRI.JK', 'TLKM.JK', 'GOTO.JK', // ID Stocks
             'GC=F', 'SI=F' // Commodities
         ];
+
+        interface YahooQuote {
+            symbol: string;
+            regularMarketPrice?: number;
+            regularMarketChangePercent?: number;
+            currency?: string;
+            shortName?: string;
+            longName?: string;
+        }
         
-        const results = await yahooFinance.quote(symbols);
-        const rateResult = await yahooFinance.quote('IDR=X');
-        const usdIdrRate = (rateResult as any)?.regularMarketPrice || 16350;
+        const results = await yahooFinance.quote(symbols) as YahooQuote[];
+        const rateResult = await yahooFinance.quote('IDR=X') as YahooQuote;
+        const usdIdrRate = rateResult?.regularMarketPrice || 16350;
         
         console.log('[Yahoo Finance] Success! Fetched', results.length, 'symbols. USD/IDR rate:', usdIdrRate);
 
-        return (results as any[]).map((item: any) => {
+        return results.map((item) => {
             let type: 'STOCK_US' | 'STOCK_ID' | 'COMMODITY' = 'STOCK_US';
             if (item.symbol?.includes('.JK')) type = 'STOCK_ID';
             if (item.symbol?.includes('=F')) type = 'COMMODITY';

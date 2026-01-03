@@ -1,7 +1,7 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
-import { Asset, MarketData, PortfolioItem, PriceAlert } from '@/lib/types';
+import { MarketData, PortfolioItem, PriceAlert } from '@/lib/types';
 import { MOCK_MARKET_DATA, MOCK_PORTFOLIO, MOCK_ALERTS } from '@/lib/mock-data';
 import { useBinanceWebSocket } from '@/lib/hooks/use-binance-websocket';
 
@@ -29,7 +29,7 @@ const BINANCE_SYMBOL_MAP: Record<string, string> = {
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [currency, setCurrency] = useState<'USD' | 'IDR'>('IDR');
   const [marketData, setMarketData] = useState<MarketData>(MOCK_MARKET_DATA);
-  const [portfolio, setPortfolio] = useState<PortfolioItem[]>(MOCK_PORTFOLIO);
+  const [portfolio] = useState<PortfolioItem[]>(MOCK_PORTFOLIO);
   const [alerts, setAlerts] = useState<PriceAlert[]>(MOCK_ALERTS);
 
   // Fetch initial data via REST API

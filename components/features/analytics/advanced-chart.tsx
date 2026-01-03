@@ -1,9 +1,9 @@
 "use client"
 
 import { useState, useMemo, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ComposedChart, Area, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from 'recharts';
+import { ComposedChart, Area, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { formatCurrency } from "@/lib/utils";
 import { useStore } from "@/components/providers/store-provider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -37,7 +37,7 @@ interface ChartStats {
   isPositive: boolean;
 }
 
-const CustomTooltip = ({ active, payload, label, currency }: { active?: boolean; payload?: any[]; label?: string; currency: 'USD' | 'IDR' }) => {
+const CustomTooltip = ({ active, payload, label, currency }: { active?: boolean; payload?: { payload: ChartDataPoint }[]; label?: string; currency: 'USD' | 'IDR' }) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload as ChartDataPoint;
     const isGreen = data.close >= data.open;

@@ -65,10 +65,19 @@ export async function fetchYahooData() {
         
         // We need USD/IDR rate for normalization if source is in one currency but we need the other
         // Let's fetch the rate as well
-        const rateResult = await yahooFinance.quote('IDR=X');
-        const usdIdrRate = (rateResult as any).regularMarketPrice || 16350;
+        interface YahooQuote {
+            symbol: string;
+            regularMarketPrice?: number;
+            regularMarketChangePercent?: number;
+            currency?: string;
+            shortName?: string;
+            longName?: string;
+        }
 
-        return (results as any[]).map((item: any) => {
+        const rateResult = await yahooFinance.quote('IDR=X') as YahooQuote;
+        const usdIdrRate = rateResult?.regularMarketPrice || 16350;
+
+        return (results as YahooQuote[]).map((item) => {
             let type = 'STOCK_US';
             if (item.symbol.includes('.JK')) type = 'STOCK_ID';
             if (item.symbol.includes('=F')) type = 'COMMODITY';

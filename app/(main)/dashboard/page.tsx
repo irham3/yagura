@@ -6,7 +6,7 @@ export default function DashboardPage() {
     <div className="space-y-8">
       <section>
         <h1 className="text-3xl font-bold tracking-tight mb-1">Dashboard</h1>
-        <p className="text-muted-foreground">Welcome back. Here's your asset overview.</p>
+        <p className="text-muted-foreground">Welcome back. Here&apos;s your asset overview.</p>
       </section>
       <PortfolioSummary />
       <MarketOverview />
