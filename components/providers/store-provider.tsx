@@ -1,9 +1,9 @@
 "use client"
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { Asset, MarketData, PortfolioItem, PriceAlert } from '@/lib/types';
 import { MOCK_MARKET_DATA, MOCK_PORTFOLIO, MOCK_ALERTS } from '@/lib/mock-data';
-import { USD_IDR_RATE } from '@/lib/utils';
+import { useBinanceWebSocket } from '@/lib/hooks/use-binance-websocket';
 
 interface StoreState {
   currency: 'USD' | 'IDR';
@@ -18,41 +18,82 @@ interface StoreState {
 
 const StoreContext = createContext<StoreState | undefined>(undefined);
 
+const BINANCE_SYMBOL_MAP: Record<string, string> = {
+  'bitcoin': 'btcusdt',
+  'ethereum': 'ethusdt',
+  'solana': 'solusdt',
+  'binancecoin': 'bnbusdt',
+  'dogecoin': 'dogeusdt'
+};
+
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [currency, setCurrency] = useState<'USD' | 'IDR'>('IDR');
   const [marketData, setMarketData] = useState<MarketData>(MOCK_MARKET_DATA);
   const [portfolio, setPortfolio] = useState<PortfolioItem[]>(MOCK_PORTFOLIO);
   const [alerts, setAlerts] = useState<PriceAlert[]>(MOCK_ALERTS);
 
-  // Simulate real-time updates
+  // Fetch initial data via REST API
   useEffect(() => {
-    const interval = setInterval(() => {
-      setMarketData(prev => {
-        const fluctuate = (assets: Asset[]) => assets.map(a => {
-          const change = (Math.random() - 0.5) * 0.002; // 0.2% fluctuation
-          const newPriceUSD = a.priceUSD * (1 + change);
-          return {
-            ...a,
-            priceUSD: newPriceUSD,
-            priceIDR: newPriceUSD * USD_IDR_RATE,
-            lastUpdated: new Date().toISOString()
-          };
-        });
+    const fetchData = async () => {
+      try {
+        const res = await fetch('/api/market-data');
+        if (!res.ok) throw new Error("Failed to fetch");
+        const data = await res.json();
 
-        return {
-          crypto: fluctuate(prev.crypto),
-          stocksUS: fluctuate(prev.stocksUS),
-          stocksID: fluctuate(prev.stocksID),
-          commodities: fluctuate(prev.commodities),
-        };
-      });
-    }, 3000);
+        if (data.crypto && data.crypto.length > 0) {
+          setMarketData(prev => ({
+            ...prev,
+            crypto: data.crypto,
+            stocksUS: data.stocksUS,
+            stocksID: data.stocksID,
+            commodities: data.commodities
+          }));
+        }
+      } catch (err) {
+        console.error("Market data sync error:", err);
+      }
+    };
+
+    fetchData(); // Initial load
+    const interval = setInterval(fetchData, 61000); // Backup polling for stocks/commodities
 
     return () => clearInterval(interval);
   }, []);
 
+  // Real-time WebSocket updates for crypto prices
+  const handlePriceUpdate = useCallback((symbol: string, price: number) => {
+    setMarketData(prev => {
+      const updatedCrypto = prev.crypto.map(coin => {
+        const binanceSymbol = BINANCE_SYMBOL_MAP[coin.id];
+        if (binanceSymbol === symbol) {
+          return {
+            ...coin,
+            priceUSD: price,
+            priceIDR: price * 16350, // Simple conversion
+            lastUpdated: new Date().toISOString()
+          };
+        }
+        return coin;
+      });
+
+      return { ...prev, crypto: updatedCrypto };
+    });
+  }, []);
+
+  const { isConnected } = useBinanceWebSocket({
+    symbols: Object.values(BINANCE_SYMBOL_MAP),
+    onPriceUpdate: handlePriceUpdate,
+    enabled: true
+  });
+
+  useEffect(() => {
+    if (isConnected) {
+      console.log('[Store] 🟢 Live WebSocket connected!');
+    }
+  }, [isConnected]);
+
   const refreshPrices = async () => {
-    // Placeholder logic
+    // Manual refresh logic if needed
   };
 
   const addAlert = (alert: PriceAlert) => setAlerts(prev => [...prev, alert]);

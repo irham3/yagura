@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ComposedChart, Area, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from 'recharts';
@@ -9,7 +9,7 @@ import { useStore } from "@/components/providers/store-provider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowUp, ArrowDown, TrendingUp, TrendingDown, BarChart2 } from 'lucide-react';
 
-type TimeRange = '1D' | '1W' | '1M' | '6M' | '1Y';
+type TimeRange = '1D' | '1W' | '1M' | '6M' | '1Y' | '3Y' | '5Y';
 
 interface OHLCV {
   date: string;
@@ -18,34 +18,6 @@ interface OHLCV {
   low: number;
   close: number;
   volume: number;
-}
-
-// Generate realistic financial data
-function generateFinancialData(basePrice: number, points: number, volatility: number): OHLCV[] {
-  let currentPrice = basePrice;
-  const data: OHLCV[] = [];
-  const now = new Date();
-
-  for (let i = points; i >= 0; i--) {
-    const date = new Date(now.getTime() - i * (24 * 60 * 60 * 1000) / (points / 30));
-    const change = (Math.random() - 0.5) * volatility;
-    const open = currentPrice;
-    const close = currentPrice * (1 + change);
-    const high = Math.max(open, close) * (1 + Math.random() * 0.01);
-    const low = Math.min(open, close) * (1 - Math.random() * 0.01);
-    const volume = Math.random() * 1000000 * basePrice;
-
-    data.push({
-      date: date.toISOString(),
-      open,
-      high,
-      low,
-      close,
-      volume
-    });
-    currentPrice = close;
-  }
-  return data;
 }
 
 const CustomTooltip = ({ active, payload, label, currency }: any) => {
@@ -79,6 +51,8 @@ export default function AdvancedChart() {
   const { marketData, currency } = useStore();
   const [timeRange, setTimeRange] = useState<TimeRange>('1M');
   const [selectedAssetId, setSelectedAssetId] = useState<string>('bitcoin');
+  const [dataSource, setDataSource] = useState<'live' | 'synthetic'>('live');
+  const [isLoading, setIsLoading] = useState(false);
 
   const allAssets = useMemo(() => [
     ...marketData.crypto.map(a => ({ ...a, group: 'Crypto' })),
@@ -89,31 +63,64 @@ export default function AdvancedChart() {
 
   const selectedAsset = allAssets.find(a => a.id === selectedAssetId) || allAssets[0];
 
-  const { chartData, stats } = useMemo(() => {
-    const points = timeRange === '1D' ? 24 : timeRange === '1W' ? 7 : timeRange === '1M' ? 30 : timeRange === '6M' ? 180 : 365;
-    const volatility = selectedAsset.type === 'CRYPTO' ? 0.05 : 0.02;
-    const rawData = generateFinancialData(selectedAsset.priceUSD, points, volatility);
+  const [data, setData] = useState<{ chartData: any[], stats: any } | null>(null);
 
-    const rate = currency === 'IDR' ? 16350 : 1;
+  useEffect(() => {
+    const fetchData = async () => {
+      setIsLoading(true);
+      setData(null);
+      setDataSource('none');
 
-    const processedData = rawData.map(d => ({
-      ...d,
-      displayOpen: d.open * rate,
-      displayHigh: d.high * rate,
-      displayLow: d.low * rate,
-      displayClose: d.close * rate,
-      displayVolume: d.volume * rate,
-    }));
+      const rate = currency === 'IDR' ? 16350 : 1;
+      const currentPrice = selectedAsset[currency === 'USD' ? 'priceUSD' : 'priceIDR'];
 
-    const high24h = Math.max(...processedData.slice(-24).map(d => d.displayHigh));
-    const low24h = Math.min(...processedData.slice(-24).map(d => d.displayLow));
-    const vol24h = processedData.slice(-24).reduce((acc, curr) => acc + curr.displayVolume, 0);
-    const currentPrice = processedData[processedData.length - 1].displayClose;
-    const open24h = processedData[processedData.length - 24]?.displayOpen || processedData[0].displayOpen;
-    const change24h = ((currentPrice - open24h) / open24h) * 100;
+      if (selectedAsset.type === 'CRYPTO') {
+        try {
+          const daysNum = timeRange === '1D' ? '1' : timeRange === '1W' ? '7' : timeRange === '1M' ? '30' : timeRange === '6M' ? '180' : timeRange === '1Y' ? '365' : 'max';
+          const res = await fetch(`/api/historical?coin=${selectedAsset.id}&days=${daysNum}`);
+          if (res.ok) {
+            const history = await res.json();
+            if (history.data && history.data.length > 0) {
+              const processedLive = history.data.map((d: any) => ({
+                ...d,
+                displayOpen: d.open * rate,
+                displayHigh: d.high * rate,
+                displayLow: d.low * rate,
+                displayClose: d.close * rate,
+                displayVolume: d.volume * rate,
+              }));
 
-    return { chartData: processedData, stats: { high24h, low24h, vol24h, currentPrice, change24h } };
+              const liveOpenPrice = processedLive[0]?.displayClose || currentPrice;
+              const liveChangePercent = ((currentPrice - liveOpenPrice) / liveOpenPrice) * 100;
+
+              setData({
+                chartData: processedLive,
+                stats: {
+                  high24h: Math.max(...processedLive.slice(-Math.min(24, processedLive.length)).map(d => d.displayHigh)),
+                  low24h: Math.min(...processedLive.slice(-Math.min(24, processedLive.length)).map(d => d.displayLow)),
+                  vol24h: processedLive.slice(-Math.min(24, processedLive.length)).reduce((acc, curr) => acc + curr.displayVolume, 0),
+                  currentPrice,
+                  change24h: liveChangePercent,
+                  isPositive: liveChangePercent >= 0
+                }
+              });
+              setDataSource('live');
+            }
+          }
+        } catch (err) {
+          console.warn("History fetch failed", err);
+        }
+      }
+      setIsLoading(false);
+    };
+
+    fetchData();
   }, [selectedAsset, timeRange, currency]);
+
+  // Header stats derived from the global store (selectedAsset) or chart stats
+  const displayPrice = data?.stats?.currentPrice ?? selectedAsset[currency === 'USD' ? 'priceUSD' : 'priceIDR'];
+  const displayChange = data?.stats?.change24h ?? 0;
+  const isPositive = data?.stats?.isPositive ?? true;
 
   return (
     <div className="flex flex-col gap-6">
@@ -136,10 +143,10 @@ export default function AdvancedChart() {
               </Select>
               <div>
                 <div className="flex items-baseline gap-2">
-                  <h2 className="text-3xl font-bold tracking-tight">{formatCurrency(stats.currentPrice, currency)}</h2>
-                  <span className={`flex items-center text-sm font-semibold ${stats.change24h >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                    {stats.change24h >= 0 ? <TrendingUp className="h-4 w-4 mr-1" /> : <TrendingDown className="h-4 w-4 mr-1" />}
-                    {stats.change24h.toFixed(2)}%
+                  <h2 className="text-3xl font-bold tracking-tight">{formatCurrency(displayPrice, currency)}</h2>
+                  <span className={`flex items-center text-sm font-semibold ${isPositive ? 'text-emerald-500' : 'text-rose-500'}`}>
+                    {isPositive ? <TrendingUp className="h-4 w-4 mr-1" /> : <TrendingDown className="h-4 w-4 mr-1" />}
+                    {displayChange.toFixed(2)}%
                   </span>
                 </div>
               </div>
@@ -158,33 +165,33 @@ export default function AdvancedChart() {
 
         {/* Key Stats Cards */}
         <div className="contents md:flex md:gap-4 md:col-span-4">
-          <Card className="flex-1 bg-card/50 backdrop-blur-sm">
+          <Card className={`flex-1 bg-card/50 backdrop-blur-sm ${isLoading ? 'animate-pulse' : ''}`}>
             <CardContent className="p-4 flex items-center justify-between">
               <div className="space-y-1">
                 <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">24h High</p>
-                <p className="text-lg font-bold">{formatCurrency(stats.high24h, currency)}</p>
+                <p className="text-lg font-bold">{data ? formatCurrency(data.stats.high24h, currency) : '—'}</p>
               </div>
               <div className="h-8 w-8 rounded-full bg-emerald-500/10 flex items-center justify-center">
                 <ArrowUp className="h-4 w-4 text-emerald-500" />
               </div>
             </CardContent>
           </Card>
-          <Card className="flex-1 bg-card/50 backdrop-blur-sm">
+          <Card className={`flex-1 bg-card/50 backdrop-blur-sm ${isLoading ? 'animate-pulse' : ''}`}>
             <CardContent className="p-4 flex items-center justify-between">
               <div className="space-y-1">
                 <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">24h Low</p>
-                <p className="text-lg font-bold">{formatCurrency(stats.low24h, currency)}</p>
+                <p className="text-lg font-bold">{data ? formatCurrency(data.stats.low24h, currency) : '—'}</p>
               </div>
               <div className="h-8 w-8 rounded-full bg-rose-500/10 flex items-center justify-center">
                 <ArrowDown className="h-4 w-4 text-rose-500" />
               </div>
             </CardContent>
           </Card>
-          <Card className="flex-1 bg-card/50 backdrop-blur-sm">
+          <Card className={`flex-1 bg-card/50 backdrop-blur-sm ${isLoading ? 'animate-pulse' : ''}`}>
             <CardContent className="p-4 flex items-center justify-between">
               <div className="space-y-1">
                 <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Volume (24h)</p>
-                <p className="text-lg font-bold">{formatCurrency(stats.vol24h, currency)}</p>
+                <p className="text-lg font-bold">{data ? formatCurrency(data.stats.vol24h, currency) : '—'}</p>
               </div>
               <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
                 <BarChart2 className="h-4 w-4 text-primary" />
@@ -195,74 +202,116 @@ export default function AdvancedChart() {
       </div>
 
       {/* Main Chart */}
-      <Card className="border-none shadow-lg bg-card/40 backdrop-blur-xl">
+      <Card className="border-none shadow-lg bg-card/40 backdrop-blur-xl min-h-[550px]">
         <CardHeader className="pb-2 border-b border-border/50">
-          <div className="flex items-center justify-between">
-            <CardTitle>Market Performance</CardTitle>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <CardTitle>Market Performance</CardTitle>
+              <div className="flex items-center gap-2">
+                <div className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${dataSource === 'live' ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-muted/10 text-muted-foreground border border-border'}`}>
+                  {dataSource === 'live' ? '● Live History' : '○ No History'}
+                </div>
+                {isLoading && (
+                  <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground animate-pulse">
+                    <div className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce" />
+                    Updating...
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-4 text-sm text-muted-foreground">
               <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-primary"></div> Price</span>
               <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-muted-foreground/30"></div> Volume</span>
             </div>
           </div>
         </CardHeader>
-        <CardContent className="p-0">
-          <div className="h-[500px] w-full p-4">
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={chartData}>
-                <defs>
-                  <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="var(--primary)" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted/20" vertical={false} />
-                <XAxis
-                  dataKey="date"
-                  tickFormatter={(str) => {
-                    const date = new Date(str);
-                    if (timeRange === '1D') return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                    return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
-                  }}
-                  className="text-xs text-muted-foreground"
-                  tickLine={false}
-                  axisLine={false}
-                  minTickGap={50}
-                  dy={10}
-                />
-                <YAxis
-                  yAxisId="left"
-                  domain={['auto', 'auto']}
-                  tickFormatter={(val) => formatCurrency(val, currency)}
-                  className="text-xs text-muted-foreground"
-                  tickLine={false}
-                  axisLine={false}
-                  width={80}
-                  orientation="right" // Financial standard
-                />
-                <YAxis
-                  yAxisId="right"
-                  orientation="left"
-                  tick={false}
-                  axisLine={false}
-                  domain={[0, 'dataMax * 3']} // Push volume down
-                />
-                <Tooltip content={<CustomTooltip currency={currency} />} cursor={{ stroke: 'var(--muted-foreground)', strokeWidth: 1, strokeDasharray: '4 4' }} />
-                <Area
-                  yAxisId="left"
-                  type="monotone"
-                  dataKey="displayClose"
-                  stroke="var(--primary)"
-                  strokeWidth={3}
-                  fillOpacity={1}
-                  fill="url(#colorPrice)"
-                  activeDot={{ r: 6, strokeWidth: 0, fill: "var(--foreground)" }}
-                />
-                <Bar yAxisId="right" dataKey="volume" fill="var(--foreground)" opacity={0.1} barSize={4} />
-              </ComposedChart>
-            </ResponsiveContainer>
-          </div>
+        <CardContent className="p-0 flex items-center justify-center">
+          {isLoading ? (
+            <div className="h-[500px] w-full flex items-center justify-center">
+              <div className="flex flex-col items-center gap-2">
+                <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+                <p className="text-sm text-muted-foreground">Fetching market data...</p>
+              </div>
+            </div>
+          ) : data ? (
+            <div className="h-[500px] w-full p-4">
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={data.chartData}>
+                  <defs>
+                    <linearGradient id="colorPriceGreen" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="rgb(16, 185, 129)" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="rgb(16, 185, 129)" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="colorPriceRed" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="rgb(244, 63, 94)" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="rgb(244, 63, 94)" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted/20" vertical={false} />
+                  <XAxis
+                    dataKey="date"
+                    tickFormatter={(str) => {
+                      const date = new Date(str);
+                      if (timeRange === '1D') {
+                        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                      } else if (timeRange === '1W' || timeRange === '1M') {
+                        return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+                      } else {
+                        // For 6M, 1Y - show year prominently
+                        return date.toLocaleDateString([], { month: 'short', year: 'numeric' });
+                      }
+                    }}
+                    className="text-xs text-muted-foreground"
+                    tickLine={false}
+                    axisLine={false}
+                    minTickGap={50}
+                    dy={10}
+                  />
+                  <YAxis
+                    yAxisId="left"
+                    domain={['auto', 'auto']}
+                    tickFormatter={(val) => formatCurrency(val, currency)}
+                    className="text-xs text-muted-foreground"
+                    tickLine={false}
+                    axisLine={false}
+                    width={80}
+                    orientation="right"
+                  />
+                  <YAxis
+                    yAxisId="right"
+                    orientation="left"
+                    tick={false}
+                    axisLine={false}
+                    domain={[0, 'dataMax * 3']}
+                  />
+                  <Tooltip content={<CustomTooltip currency={currency} />} cursor={{ stroke: 'var(--muted-foreground)', strokeWidth: 1, strokeDasharray: '4 4' }} />
+                  <Area
+                    yAxisId="left"
+                    type="monotone"
+                    dataKey="displayClose"
+                    stroke={data.stats.isPositive ? 'rgb(16, 185, 129)' : 'rgb(244, 63, 94)'}
+                    strokeWidth={3}
+                    fillOpacity={1}
+                    fill={data.stats.isPositive ? 'url(#colorPriceGreen)' : 'url(#colorPriceRed)'}
+                    activeDot={{ r: 6, strokeWidth: 0, fill: "var(--foreground)" }}
+                  />
+                  <Bar yAxisId="right" dataKey="volume" fill="var(--foreground)" opacity={0.1} barSize={4} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="h-[500px] w-full flex flex-col items-center justify-center p-6 text-center">
+              <div className="h-16 w-16 rounded-full bg-muted/20 flex items-center justify-center mb-4">
+                <BarChart2 className="h-8 w-8 text-muted-foreground/30" />
+              </div>
+              <h3 className="text-lg font-semibold text-amber-500">History Not Available</h3>
+              <p className="text-sm text-muted-foreground max-w-xs mt-1">
+                Real historical data for <strong>{selectedAsset.name}</strong> is not available for the <strong>{timeRange}</strong> timeframe in this tier.
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }
