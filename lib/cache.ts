@@ -25,7 +25,7 @@ export async function getCachedData<T>(key: string, fetchFn: () => Promise<T>): 
   const now = Date.now();
 
   // If we have valid cached data, return it
-  if (cacheEntry.data && (now - cacheEntry.lastUpdated < CACHE_TTL_MS)) {
+  if (cacheEntry.data !== null && (now - cacheEntry.lastUpdated < CACHE_TTL_MS)) {
       return cacheEntry.data;
   }
 
@@ -35,7 +35,7 @@ export async function getCachedData<T>(key: string, fetchFn: () => Promise<T>): 
   }
 
   // Otherwise, fetch new data
-  cacheEntry.promise = fetchFn().then(data => {
+  const promise = fetchFn().then(data => {
       cacheEntry.data = data;
       cacheEntry.lastUpdated = Date.now();
       cacheEntry.promise = null; // Clear promise after done
@@ -46,5 +46,6 @@ export async function getCachedData<T>(key: string, fetchFn: () => Promise<T>): 
       throw err;
   });
 
-  return cacheEntry.promise;
+  (cacheEntry as MarketCache<unknown>).promise = promise as Promise<unknown>;
+  return promise;
 }
