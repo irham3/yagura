@@ -20,7 +20,7 @@ Just as a watchtower allows a sentry to spot opportunities or threats from a dis
 - **Intelligent Caching:** Optimized data fetching to minimize API overhead and maximize speed.
 - **Modern Tech Stack:** Built with Next.js 15, TypeScript, and high-performance caching layers.
 
-## 🛠 Tech Stack
+## Tech Stack
 
 - **Framework:** [Next.js 15](https://nextjs.org/) (App Router)
 - **Runtime:** [Bun](https://bun.sh/)
